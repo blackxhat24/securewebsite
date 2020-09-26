@@ -1,0 +1,149 @@
+Check Database.php
+error_reporting(0)
+Buka phpmyadmin
+new namanya prk
+http://localhost:8088/luora-template/initialize.php -> buat masukin ke database
+FOCUSED ON : You can log in with this credential (username/password): lo'brien/lo'brien
+Klik salah satu artikel pencet view
+trus liat websitenya http://localhost:8088/luora-template/article.php?id=10
+
+1. Access Control
+In the site, there is an API end-point for voting on article designed specifically for AJAX requests. 
+However, the API end-point is not well protected and people could send request repeatedly that causes
+the article score to always increase.
+ -> You need to add a layer of validation to check whether a user has logged in and check whether the
+    user has voted on the article or comment beforehand. If the user has not voted, add a new vote
+    under their ID, and if the user has already voted, remove their vote instead.
+
+Liat bagian vote trus klik f12
+Console itu output dari apa yang kita lakukan
+AJAX berupa "javacript"
+Buka article.php cari paling bawah (<script>)
+#upvote ini merupakan buttonnya vote
+trus search dulu 'upvote buat nyari buttonnya dimana
+url' : "article/score.php ini menandakan yang mengatur vote di sini
+buka article/score.php
+
+SOAL 1: Check whether a user has logged in
+check $user_id        = $_SESSION['user_id'];
+200 : success
+401 : unathorized
+JAWAB :
+    if(!isset($_SESSION['user_id']))
+    {
+        http_response_code(401);
+        die();
+    }
+
+cari "echo" buat dimasukan ke jawaban line 68
+    if(!isset($_SESSION['user_id']))
+    {
+        http_response_code(401);
+        echo json_encode(['error' => 'User must login first']);
+	kebetulan defaultnya error nanti tergantung soal
+        die();
+    }
+json_encode merubah object(array/objek) menjadi string
+
+SOAL 2:
+    $queryCheck = "SELECT 1 FROM votes WHERE article_id=? AND user_id=? LIMIT 1";
+    //votes dapet dari INSERT INTO votes || LIMIT 1 buat kalau bener aja 1 aja langsung return
+    $preparedStatement = $connection->prepare($queryCheck);
+    //connection dapet dari bawah yang buat connection tergantung soal
+    $preparedStatement->bind_param("ii",$article_id, $user_id);
+    //param tau dari phpmyadmin prk structure liat itu int atau apa
+    $preparedStatement->execute();
+    $result = preparedStatement->get_result();
+    if(!$row)
+    {
+        $user_has_voted = false;
+    }
+    else
+    {
+        $user_has_voted = true;
+    }
+    //kalau row nya false artinya belum voted
+
+    if(!$user_has_voted){
+        $query = 
+            // "INSERT INTO votes (article_id, user_id)
+            // VALUES ($article_id, $user_id)";
+            // cara ganti prepare statement
+            "INSERT INTO votes (article_id, user_id)
+            VALUES (?, ?)";
+            $psInsert = $connection->prepare($query);
+            $psInsert->bind_param("ii", $article_id,$user_id);
+            $psInsert->execute();
+    }
+    else
+    {
+        $query =
+            "DELETE FROM votes WHERE article_id=? AND user_id=?";
+            $psDelete = $connection->prepare($query);
+            $psDelete->bind_param("ii", $article_id,$user_id);
+            $psDelete->execute();
+    }
+    
+
+XSS SOAL 3:
+You need to sanitize the user’s input before storing them in the database. 
+In addition, ensure that the comment still displays properly in the website.
+Check yang bisa di inputin mana aja 
+articel.php
+cari comment no comment available
+line 135
+tinggal tambah htmlentities
+trus liat comment dilempar kemana action="article/comment.php"
+buka comment.php
+tambah diatas INSERT
+$comment = htmlentities($comment);
+
+SQL SOAL 4:
+Coba lo'brien'or 1=1
+auth/auth.php
+$query = "SELECT * FROM users WHERE username='$username' AND password=SHA1('$password') LIMIT 1";
+$result = $connection->query($query);
+buat prepare statement
+
+SOAL 5:
+buka .htaccess
+Options All -Indexes
+
+CSRF SOAL 6:
+Generate token setiap session start
+buka login cari session ada gak
+    include('helpers/session.php');
+helpers/session.php
+id="submit-comment" cari yang inputan bisa rawan csrf
+<input type="hidden" name="token" value="<?= $_SESSION['token'] ?>"> di hidden
+
+trus check lempar kemana 
+action="article/comment.php"
+tambah
+    $userToken = null;
+    if(isset($_POST['token']))
+    {
+        $userToken = $_POST['token'];
+    }
+    if($userToken!= $_SESSION['token'])
+    {
+        //token invalid
+        add_error('token invalid');
+        redirect("../article.php?id=$article_id#submit-comment");
+    }
+cari function yang echo error
+     add_error('comment may not be blank');
+     redirect("../article.php?id=$article_id#submit-comment");
+
+
+
+
+
+
+
+ 
+
+
+
+
+
